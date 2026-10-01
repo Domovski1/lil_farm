@@ -2,19 +2,22 @@
 import pygame
 import sys
 from settings import WIDTH, HEIGHT, FPS
-from menu import Menu
+from menu import Menu, SettingsMenu  # Импортируем новый класс
 from game import GameWorld
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    
+    # Флаги дисплея по умолчанию
+    flags = pygame.DOUBLEBUF
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
     pygame.display.set_caption("Мой Фермер (Изометрия)")
     clock = pygame.time.Clock()
 
-    # Состояния игры
-    state = "MENU" # Возможные: MENU, GAME, SETTINGS
+    state = "MENU"
     
     menu = Menu(screen)
+    settings_menu = SettingsMenu(screen) # Инициализируем настройки
     world = GameWorld(screen)
 
     while True:
@@ -36,24 +39,35 @@ def main():
             
             elif state == "GAME":
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    state = "MENU" # Возврат в меню по кнопке ESC
-
-            elif state == "SETTINGS":
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     state = "MENU"
 
-        # Отрисовка и обновление в зависимости от состояния
+            elif state == "SETTINGS":
+                # Передаем события в меню настроек
+                settings_action = settings_menu.handle_event(event)
+                
+                if settings_action == "back" or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                    state = "MENU"
+                    
+                elif settings_action == "toggle_fullscreen":
+                    # Переключаем режим экрана Pygame на лету
+                    if settings_menu.fullscreen:
+                        screen = pygame.display.set_mode((WIDTH, HEIGHT), flags | pygame.FULLSCREEN)
+                    else:
+                        screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
+                        
+                elif settings_action == "volume_changed":
+                    # Тут в будущем будет управление громкостью микшера:
+                    # pygame.mixer.music.set_volume(settings_menu.volume)
+                    pass
+
+        # Отрисовка
         if state == "MENU":
             menu.draw()
         elif state == "GAME":
             world.update()
             world.draw_farm()
         elif state == "SETTINGS":
-            # Заглушка для экрана настроек
-            screen.fill((40, 40, 60))
-            font = pygame.font.SysFont("Arial", 30)
-            text = font.render("Экран настроек (Нажмите ESC для выхода)", True, (255, 255, 255))
-            screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2))
+            settings_menu.draw() # Рисуем наше проработанное меню
 
         pygame.display.flip()
         clock.tick(FPS)

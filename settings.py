@@ -21,3 +21,7 @@ GRAY = (50, 50, 50)
 LIGHT_GRAY = (200, 200, 200)
 GREEN = (34, 139, 34)
 DARK_GREEN = (19, 75, 19)
+
+# Меню настроек
+DEFAULT_VOLUME = 0.5  # Громкость от 0.0 до 1.0
+IS_FULLSCREEN = False
