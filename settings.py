@@ -5,12 +5,12 @@ FPS = 60
 
 
 # Размеры изометрической плитки
-TILE_WIDTH = 64
-TILE_HEIGHT = 32
+TILE_WIDTH = 128 #64
+TILE_HEIGHT = 64 #32
 
 
 # Размеры сетки фермы (например, 10х10 участков)
-GRID_SIZE = 10
+GRID_SIZE = 16
 
 
 

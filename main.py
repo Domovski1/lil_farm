@@ -38,6 +38,8 @@ def main():
                     sys.exit()
             
             elif state == "GAME":
+                # Передаем события мыши в игровой мир для зума и перетаскивания карты
+                world.handle_event(event)
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     state = "MENU"
 
