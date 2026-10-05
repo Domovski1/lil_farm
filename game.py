@@ -2,7 +2,7 @@
 import pygame
 import random
 from settings import (WIDTH, HEIGHT, GRID_SIZE, TILE_WIDTH, TILE_HEIGHT, 
-                      GREEN, DARK_GREEN, STONE_COLOR, LEAVES_COLOR, TRUNK_COLOR)
+                      GREEN, DARK_GREEN, STONE_COLOR, LEAVES_COLOR, TRUNK_COLOR, ROAD_COLOR)
 
 class GameWorld:
     def __init__(self, screen):
@@ -26,23 +26,25 @@ class GameWorld:
         # Координаты клетки под курсором
         self.hovered_tile = (-1, -1)
 
+        # --- СИСТЕМА ЗЕМЛИ И ДОРОГ ---
+        # Матрица поверхности: 0 - трава, 1 - дорога
+        self.ground_grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+
         # --- ГЕНЕРАЦИЯ ПРЕПЯТСТВИЙ ---
         # Матрица объектов: 0 - пусто, 1 - камень, 2 - дерево
         self.objects_grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
         self.generate_obstacles()
 
     def generate_obstacles(self):
-        """Случайная генерация камней и деревьев на карте."""
+        """Случайная генерация камней и деревьев."""
         for x in range(GRID_SIZE):
             for y in range(GRID_SIZE):
-                # Оставляем центр фермы (клетки от 3 до 6) пустым для старта игрока
                 if 3 <= x <= 6 and 3 <= y <= 6:
                     continue
-                
                 rand = random.random()
-                if rand < 0.10:    # 10% шанс на появление камня
+                if rand < 0.10:
                     self.objects_grid[x][y] = 1
-                elif rand < 0.25:  # 15% шанс на появление дерева (0.10 + 0.15)
+                elif rand < 0.25:
                     self.objects_grid[x][y] = 2
 
     def cartesian_to_isometric(self, x, y):
@@ -67,7 +69,7 @@ class GameWorld:
         return -1, -1
 
     def handle_event(self, event):
-        """Обработка событий мыши (зум и ЛКМ) для игрового мира."""
+        """Обработка событий мыши."""
         mouse_pos = pygame.mouse.get_pos()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -100,16 +102,24 @@ class GameWorld:
                     self.camera_y = self.drag_start_camera[1] + delta_y
 
     def handle_tile_click(self):
-        """Одиночный клик ЛКМ на клетку (для будущих механик расчистки)."""
+        """Клик ЛКМ — логика строительства дороги и взаимодействия с препятствиями."""
         hx, hy = self.hovered_tile
         if hx != -1 and hy != -1:
             obj_type = self.objects_grid[hx][hy]
+            
+            # Если на плитке стоит препятствие, строить дорогу нельзя
             if obj_type == 1:
-                print(f"Клик по камню на клетке ({hx}, {hy}). Нужно разбить киркой!")
+                print(f"Тут камень на ({hx}, {hy}), дорогу не построить!")
             elif obj_type == 2:
-                print(f"Клик по дереву на клетке ({hx}, {hy}). Нужно срубить топором!")
+                print(f"Тут дерево на ({hx}, {hy}), дорогу не построить!")
             else:
-                print(f"Клик по пустой траве на клетке ({hx}, {hy}).")
+                # Если клетка пустая, переключаем режим: Трава <-> Дорога
+                if self.ground_grid[hx][hy] == 0:
+                    self.ground_grid[hx][hy] = 1
+                    print(f"Построена дорога на клетке ({hx}, {hy})")
+                else:
+                    self.ground_grid[hx][hy] = 0
+                    print(f"Дорога убрана с клетки ({hx}, {hy})")
 
     def update(self):
         """Обновление логики игры."""
@@ -128,53 +138,49 @@ class GameWorld:
             for y in range(GRID_SIZE):
                 iso_x, iso_y = self.cartesian_to_isometric(x, y)
                 
-                # 1. Отрисовка плитки земли
+                # Точки для ромба (плитки)
                 points = [
                     (iso_x, iso_y),
                     (iso_x + cur_w // 2, iso_y + cur_h // 2),
                     (iso_x, iso_y + cur_h),
                     (iso_x - cur_w // 2, iso_y + cur_h // 2)
                 ]
-                color = GREEN if (x + y) % 2 == 0 else DARK_GREEN
+                
+                # 1. ОПРЕДЕЛЯЕМ ЦВЕТ ТИПА ЗЕМЛИ (Трава или Дорога)
+                if self.ground_grid[x][y] == 1:
+                    color = ROAD_COLOR
+                else:
+                    # Чередуем оттенки зеленого для обычной травы
+                    color = GREEN if (x + y) % 2 == 0 else DARK_GREEN
+                
+                # Рисуем саму поверхность плитки
                 pygame.draw.polygon(self.screen, color, points)
                 pygame.draw.polygon(self.screen, (50, 50, 50), points, 1)
 
-                # 2. Отрисовка объектов поверх плитки земли
+                # 2. Отрисовка объектов поверх плитки
                 obj = self.objects_grid[x][y]
                 
-                if obj == 1:  # КАМЕНЬ (рисуем небольшой серый многоугольник)
+                if obj == 1:  # КАМЕНЬ
                     stone_w = int(16 * self.zoom)
                     stone_h = int(12 * self.zoom)
-                    # Центрируем камень на плитке и приподнимаем к её центру
-                    sx = iso_x
-                    sy = iso_y + cur_h // 2
-                    
+                    sx, sy = iso_x, iso_y + cur_h // 2
                     stone_points = [
-                        (sx, sy - stone_h),
-                        (sx + stone_w, sy),
-                        (sx, sy + stone_h // 2),
-                        (sx - stone_w, sy)
+                        (sx, sy - stone_h), (sx + stone_w, sy),
+                        (sx, sy + stone_h // 2), (sx - stone_w, sy)
                     ]
                     pygame.draw.polygon(self.screen, STONE_COLOR, stone_points)
                     pygame.draw.polygon(self.screen, (80, 80, 80), stone_points, 1)
 
-                elif obj == 2:  # ДЕРЕВО (ствол + крона)
+                elif obj == 2:  # ДЕРЕВО
                     trunk_w = max(2, int(6 * self.zoom))
                     trunk_h = int(24 * self.zoom)
                     leaves_r = int(16 * self.zoom)
+                    base_x, base_y = iso_x, iso_y + cur_h // 2
                     
-                    # Точка основания дерева
-                    base_x = iso_x
-                    base_y = iso_y + cur_h // 2
-                    
-                    # Ствол дерева
                     pygame.draw.rect(self.screen, TRUNK_COLOR, 
                                      (base_x - trunk_w // 2, base_y - trunk_h, trunk_w, trunk_h))
-                    # Крона дерева (листва)
-                    pygame.draw.circle(self.screen, LEAVES_COLOR, 
-                                       (base_x, base_y - trunk_h), leaves_r)
-                    pygame.draw.circle(self.screen, (20, 70, 20), 
-                                       (base_x, base_y - trunk_h), leaves_r, 1)
+                    pygame.draw.circle(self.screen, LEAVES_COLOR, (base_x, base_y - trunk_h), leaves_r)
+                    pygame.draw.circle(self.screen, (20, 70, 20), (base_x, base_y - trunk_h), leaves_r, 1)
 
         # 3. Рисуем подсветку выбранной клетки поверх всего
         hx, hy = self.hovered_tile

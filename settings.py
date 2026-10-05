@@ -16,6 +16,7 @@ GRID_SIZE = 16
 STONE_COLOR = (130, 130, 130)
 LEAVES_COLOR = (34, 100, 34)
 TRUNK_COLOR = (101, 67, 33)
+ROAD_COLOR = (140, 120, 100)  # Песочно-коричневый цвет для дорожки
 
 
 # Цвета (RGB)
