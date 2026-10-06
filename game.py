@@ -1,8 +1,9 @@
 # game.py
 import pygame
 import random
+import os
 from settings import (WIDTH, HEIGHT, GRID_SIZE, TILE_WIDTH, TILE_HEIGHT, 
-                      GREEN, DARK_GREEN, STONE_COLOR, LEAVES_COLOR, TRUNK_COLOR, ROAD_COLOR)
+                      STONE_COLOR, LEAVES_COLOR, TRUNK_COLOR, ROAD_COLOR)
 
 class GameWorld:
     def __init__(self, screen):
@@ -26,12 +27,21 @@ class GameWorld:
         # Координаты клетки под курсором
         self.hovered_tile = (-1, -1)
 
+        # --- ЗАГРУЗКА ГРАФИКИ ---
+        # Загружаем вашу текстуру травы и сохраняем прозрачность (.convert_alpha())
+        try:
+            self.grass_img_original = pygame.image.load(os.path.join("assets", "grass.png")).convert_alpha()
+        except pygame.error:
+            # На случай, если файла нет, создаем временную зеленую заплатку, чтобы игра не вылетала
+            print("Предупреждение: Файл assets/grass.png не найден! Использована заглушка.")
+            self.grass_img_original = pygame.Surface((TILE_WIDTH, TILE_HEIGHT), pygame.SRCALPHA)
+            pygame.draw.polygon(self.grass_img_original, (34, 139, 34), 
+                                [(TILE_WIDTH//2, 0), (TILE_WIDTH, TILE_HEIGHT//2), (TILE_WIDTH//2, TILE_HEIGHT), (0, TILE_HEIGHT//2)])
+
         # --- СИСТЕМА ЗЕМЛИ И ДОРОГ ---
-        # Матрица поверхности: 0 - трава, 1 - дорога
         self.ground_grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
         # --- ГЕНЕРАЦИЯ ПРЕПЯТСТВИЙ ---
-        # Матрица объектов: 0 - пусто, 1 - камень, 2 - дерево
         self.objects_grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
         self.generate_obstacles()
 
@@ -102,18 +112,15 @@ class GameWorld:
                     self.camera_y = self.drag_start_camera[1] + delta_y
 
     def handle_tile_click(self):
-        """Клик ЛКМ — логика строительства дороги и взаимодействия с препятствиями."""
+        """Клик ЛКМ."""
         hx, hy = self.hovered_tile
         if hx != -1 and hy != -1:
             obj_type = self.objects_grid[hx][hy]
-            
-            # Если на плитке стоит препятствие, строить дорогу нельзя
             if obj_type == 1:
                 print(f"Тут камень на ({hx}, {hy}), дорогу не построить!")
             elif obj_type == 2:
                 print(f"Тут дерево на ({hx}, {hy}), дорогу не построить!")
             else:
-                # Если клетка пустая, переключаем режим: Трава <-> Дорога
                 if self.ground_grid[hx][hy] == 0:
                     self.ground_grid[hx][hy] = 1
                     print(f"Построена дорога на клетке ({hx}, {hy})")
@@ -124,21 +131,25 @@ class GameWorld:
     def update(self):
         """Обновление логики игры."""
         mouse_pos = pygame.mouse.get_pos()
-        mx, my = mouse_pos
-        self.hovered_tile = self.isometric_to_cartesian(mx, my)
+        self.hovered_tile = self.isometric_to_cartesian(mouse_pos[0], mouse_pos[1])
 
     def draw_farm(self):
         self.screen.fill((30, 30, 40))
 
-        cur_w = TILE_WIDTH * self.zoom
-        cur_h = TILE_HEIGHT * self.zoom
+        # Вычисляем текущие размеры плитки с учетом зума
+        cur_w = int(TILE_WIDTH * self.zoom)
+        cur_h = int(TILE_HEIGHT * self.zoom)
+
+        # Масштабируем текстуру травы под текущий зум
+        # Используем pygame.transform.scale — он сохраняет пиксели "острыми", если разрешение кратное
+        scaled_grass = pygame.transform.scale(self.grass_img_original, (cur_w, cur_h))
 
         # Отрисовка карты по рядам и колонкам
         for x in range(GRID_SIZE):
             for y in range(GRID_SIZE):
                 iso_x, iso_y = self.cartesian_to_isometric(x, y)
                 
-                # Точки для ромба (плитки)
+                # Точки для ромба (нужны для дорог, подсветки и сеток)
                 points = [
                     (iso_x, iso_y),
                     (iso_x + cur_w // 2, iso_y + cur_h // 2),
@@ -146,20 +157,18 @@ class GameWorld:
                     (iso_x - cur_w // 2, iso_y + cur_h // 2)
                 ]
                 
-                # 1. ОПРЕДЕЛЯЕМ ЦВЕТ ТИПА ЗЕМЛИ (Трава или Дорога)
+                # 1. ОТРИСОВКА ПОВЕРХНОСТИ ЗЕМЛИ
                 if self.ground_grid[x][y] == 1:
-                    color = ROAD_COLOR
+                    # Дорога пока остается цветным полигоном (пока вы её не нарисуете)
+                    pygame.draw.polygon(self.screen, ROAD_COLOR, points)
+                    pygame.draw.polygon(self.screen, (50, 50, 50), points, 1)
                 else:
-                    # Чередуем оттенки зеленого для обычной травы
-                    color = GREEN if (x + y) % 2 == 0 else DARK_GREEN
-                
-                # Рисуем саму поверхность плитки
-                pygame.draw.polygon(self.screen, color, points)
-                pygame.draw.polygon(self.screen, (50, 50, 50), points, 1)
+                    # РИСУЕМ ВАШУ ТЕКСТУРУ ТРАВЫ!
+                    # Картинка рисуется от верхнего левого угла, поэтому смещаем её влево на половину ширины
+                    self.screen.blit(scaled_grass, (iso_x - cur_w // 2, iso_y))
 
                 # 2. Отрисовка объектов поверх плитки
                 obj = self.objects_grid[x][y]
-                
                 if obj == 1:  # КАМЕНЬ
                     stone_w = int(16 * self.zoom)
                     stone_h = int(12 * self.zoom)
